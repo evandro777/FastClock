@@ -49,7 +49,7 @@
   <launchable type="desktop-id">io.github.evandro777.FastClock.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.1.0" date="2026-11-14">
+    <release version="0.1.1" date="2026-11-15">
       <description>
         <p>First release: alarms with snooze, a timer, a stopwatch and a Pomodoro, a tray icon, and a sound of your choice.</p>
       </description>

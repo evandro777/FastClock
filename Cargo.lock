@@ -980,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "fastclock"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fastclock-core",
  "ksni",
@@ -992,7 +992,7 @@ dependencies = [
 
 [[package]]
 name = "fastclock-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "libc",
  "serde",

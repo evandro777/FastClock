@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::clock::Alarm;
 use crate::files::{read_or_backup, write_atomic};
 
-/// Folder name under the XDG data dir; `prepare.sh` rewrites it.
+/// Folder name under the XDG data dir.
 pub const APP_DIR: &str = "FastClock";
 pub const MIN_SIZE: (u32, u32) = (400, 300);
 /// Upper bound for a hand-edited size; a huge value would fail at window creation.
