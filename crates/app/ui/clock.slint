@@ -1,0 +1,495 @@
+// The four pages of FastClock. Dialogs (alarm editor, ringing, preferences) live in main.slint because they inherit
+// its `Dialog` shell. Every string that Rust needs is built in the `Tr` global there; the strings here are the pages' own.
+import { Button, ScrollView, Switch } from "std-widgets.slint";
+import { Palette } from "std-widgets.slint";
+import { Family } from "family.slint";
+import { FilterBar, Icon, IconButton } from "controls.slint";
+
+// Rust fills it: a string cut into characters, so `Glyphs` can give every digit the same cell.
+export global Digits {
+    pure callback split(string) -> [string];
+}
+
+// A time drawn with one fixed-width cell per digit, so a running clock never shifts sideways when a "1" follows an
+// "8" (many fonts have proportional digits). The colon and the point get a narrow cell.
+component Glyphs inherits HorizontalLayout {
+    in property <string> text;
+    in property <length> size: 56px;
+    alignment: center;
+    accessible-role: image;
+    accessible-label: root.text;
+    for c in Digits.split(root.text): Text {
+        text: c;
+        font-size: root.size;
+        font-weight: Family.section-weight;
+        horizontal-alignment: center;
+        width: c == ":" || c == "." ? root.size * 0.32 : root.size * 0.62;
+    }
+}
+
+// The stepper's arrows: bigger and bolder than the kit's 28 px chevron, because they are the main control of a dialog.
+component StepArrow inherits Rectangle {
+    in property <bool> up;
+    in property <string> label;
+    callback clicked();
+    width: 48px;
+    height: Family.control-height;
+    border-radius: Family.control-radius;
+    background: touch.pressed ? Palette.foreground.with-alpha(0.16) : touch.has-hover ? Palette.foreground.with-alpha(0.1) : Palette.foreground.with-alpha(0.04);
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    if fs.has-focus: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-width: 2px;
+        border-color: Palette.accent-background;
+        border-radius: Family.control-radius;
+    }
+    fs := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+        touch := TouchArea { mouse-cursor: pointer; clicked => { fs.focus(); root.clicked(); } }
+    }
+    Path {
+        width: 16px;
+        height: 10px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        viewbox-width: 12;
+        viewbox-height: 8;
+        commands: root.up ? "M 1 7 L 6 2 L 11 7" : "M 1 1 L 6 6 L 11 1";
+        stroke: Palette.foreground;
+        stroke-width: 1.6px;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+    }
+}
+
+export struct AlarmRow {
+    time: string,
+    label: string,
+    // "Mon, Wed", "Weekdays", "Once"...: already translated in Rust (`Tr`).
+    days: string,
+    enabled: bool,
+}
+
+// The one number on a page that is the page: the clock face is bigger than the family's type scale on purpose.
+component ClockFace inherits VerticalLayout {
+    in property <string> text;
+    in property <string> caption;
+    in property <color> caption-color: Family.muted;
+    // The bar's colour: the caption's for Pomodoro (work blue, break green), the info blue for a timer.
+    in property <color> bar-color: Family.info;
+    // Time left as a fraction (a thin bar under the number); negative hides the bar.
+    in property <float> progress: -1;
+    // A row of dots under the caption, `filled` of `dots` solid; 0 hides it.
+    in property <int> dots: 0;
+    in property <int> filled: 0;
+    // What a screen reader says for the dots ("Round 2 of 4").
+    in property <string> dots-label;
+    alignment: center;
+    spacing: Family.gap-l;
+    if root.caption != "": Text {
+        text: root.caption;
+        color: root.caption-color;
+        font-size: Family.title;
+        font-weight: Family.section-weight;
+        horizontal-alignment: center;
+    }
+    if root.dots > 0: HorizontalLayout {
+        alignment: center;
+        spacing: Family.gap-m;
+        accessible-role: image;
+        accessible-label: root.dots-label;
+        for i in root.dots: Rectangle {
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            border-width: 1.5px;
+            border-color: root.caption-color;
+            background: i < root.filled ? root.caption-color : transparent;
+        }
+    }
+    Glyphs { text: root.text; }
+    if root.progress >= 0: HorizontalLayout {
+        alignment: center;
+        Rectangle {
+            width: 240px;
+            height: 4px;
+            border-radius: 2px;
+            background: Palette.foreground.with-alpha(0.1);
+            Rectangle {
+                x: 0px;
+                width: parent.width * clamp(root.progress, 0, 1);
+                border-radius: 2px;
+                background: root.bar-color;
+            }
+        }
+    }
+    // Room between the number and its buttons: the buttons are a separate step, not part of the reading.
+    Rectangle { height: Family.gap-m; }
+    HorizontalLayout {
+        alignment: center;
+        spacing: Family.gap-m;
+        @children
+    }
+}
+
+// The title row of the alarm page: always as tall as a button, so it does not jump when the button goes. The other pages
+// have no header, because the sidebar already names the page.
+component PageHeader inherits HorizontalLayout {
+    in property <string> title;
+    height: Family.control-height;
+    spacing: Family.gap-m;
+    Text {
+        text: root.title;
+        font-size: Family.title;
+        font-weight: Family.section-weight;
+        vertical-alignment: center;
+        overflow: elide;
+        min-width: 0px;
+        horizontal-stretch: 1;
+    }
+    @children
+}
+
+// 0 idle, 1 running, 2 paused: the pages share it.
+component StartPauseReset inherits HorizontalLayout {
+    in property <int> state;
+    in property <bool> can-start: true;
+    callback start();
+    callback pause();
+    callback resume();
+    callback reset();
+    alignment: center;
+    spacing: Family.gap-m;
+    Button {
+        text: root.state == 1 ? @tr("Pause") : root.state == 2 ? @tr("Resume") : @tr("Start");
+        primary: true;
+        min-width: 104px;
+        enabled: root.state != 0 || root.can-start;
+        clicked => {
+            if root.state == 0 { root.start(); }
+            else if root.state == 1 { root.pause(); }
+            else { root.resume(); }
+        }
+    }
+    Button { text: @tr("Reset"); min-width: 80px; enabled: root.state != 0; clicked => { root.reset(); } }
+}
+
+export component AlarmPage inherits VerticalLayout {
+    in property <[AlarmRow]> alarms;
+    // "Next alarm in 7 h 12 min", or "" when no alarm is on.
+    in property <string> next;
+    callback add();
+    callback edit(int);
+    callback toggled(int, bool);
+    callback delete(int);
+    padding: 24px;
+    spacing: Family.gap-l;
+
+    // The next ring is the heading while an alarm is on: that is what the person opens this page to read.
+    PageHeader {
+        title: root.next != "" ? root.next : @tr("Alarm");
+        Button { text: @tr("New alarm"); primary: true; clicked => { root.add(); } }
+    }
+    if root.alarms.length == 0: VerticalLayout {
+        vertical-stretch: 1;
+        alignment: center;
+        spacing: Family.gap-m;
+        HorizontalLayout { alignment: center; Icon { source: @image-url("icons/alarm-clock.svg"); width: 40px; height: 40px; } }
+        Text {
+            text: @tr("No alarms yet. Press New alarm.");
+            color: Family.muted;
+            wrap: word-wrap;
+            min-width: 0px;
+            horizontal-alignment: center;
+        }
+    }
+    if root.alarms.length > 0: ScrollView {
+        VerticalLayout {
+            // Without `start` a short list would spread its rows over the window.
+            alignment: start;
+            // Keeps the scrollbar off the switches.
+            padding-right: 14px;
+            for row[i] in root.alarms: Rectangle {
+                height: 56px;
+                border-radius: Family.control-radius;
+                background: touch.has-hover ? Palette.foreground.with-alpha(0.06) : transparent;
+                // Under the row's content, so a right click anywhere on the row opens the same menu as the ⋯ button.
+                menu := ContextMenuArea {
+                    Menu { MenuItem { title: @tr("Delete"); activated => { root.delete(i); } } }
+                }
+                touch := TouchArea { mouse-cursor: pointer; clicked => { root.edit(i); } }
+                if i < root.alarms.length - 1: Rectangle {
+                    y: parent.height - 1px;
+                    x: Family.gap-m;
+                    width: parent.width - 2 * Family.gap-m;
+                    height: 1px;
+                    background: Palette.border.with-alpha(0.6);
+                }
+                HorizontalLayout {
+                    padding-left: Family.gap-m;
+                    padding-right: Family.gap-m;
+                    spacing: Family.gap-l;
+                    Text {
+                        text: row.time;
+                        font-size: Family.page-title;
+                        font-weight: Family.page-weight;
+                        vertical-alignment: center;
+                        opacity: row.enabled ? 1 : 0.5;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        opacity: row.enabled ? 1 : 0.5;
+                        if row.label != "": Text {
+                            text: row.label;
+                            font-weight: Family.section-weight;
+                            overflow: elide;
+                        }
+                        Text { text: row.days; color: Family.muted; font-size: Family.caption; overflow: elide; }
+                    }
+                    Switch {
+                        checked: row.enabled;
+                        accessible-label: row.time;
+                        toggled => { root.toggled(i, self.checked); }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        IconButton {
+                            glyph: @image-url("icons/more.svg");
+                            label: @tr("More");
+                            clicked => {
+                                menu.show({
+                                    x: self.absolute-position.x - menu.absolute-position.x,
+                                    y: self.absolute-position.y - menu.absolute-position.y + self.height,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The colon between two steppers, level with the numbers (the caption under a stepper is not counted).
+export component Colon inherits VerticalLayout {
+    alignment: center;
+    Text { text: ":"; font-size: 56px; font-weight: Family.section-weight; horizontal-alignment: center; }
+    // As tall as the caption under a stepper, so the colon sits level with the digits.
+    Rectangle { height: caption-space; }
+    private property <length> caption-space: 20px;
+}
+
+// One part of a time (hours, minutes, seconds): the number at clock-face size with a step button above and below.
+// Always two digits, wraps (23 -> 0, 59 -> 0), and the mouse wheel steps it too. `caption` names the unit under it.
+export component TimeStepper inherits VerticalLayout {
+    in property <string> name;
+    in property <string> caption;
+    in-out property <int> value;
+    // 24 for hours, 60 for minutes.
+    in property <int> modulus: 60;
+    spacing: Family.gap-s;
+    function step(by: int) { root.value = Math.mod(root.value + by + root.modulus, root.modulus); }
+    HorizontalLayout {
+        alignment: center;
+        StepArrow { up: true; label: @tr("Increase {}", root.name); clicked => { root.step(1); } }
+    }
+    Rectangle {
+        // A layout would count the TouchArea as a child, so the wheel area sits beside the digits in a plain Rectangle.
+        min-height: digits.preferred-height;
+        digits := Glyphs { text: root.value < 10 ? "0" + root.value : "" + root.value; }
+        TouchArea {
+            scroll-event(e) => {
+                if e.delta-y > 0 { root.step(1); } else if e.delta-y < 0 { root.step(-1); }
+                return accept;
+            }
+        }
+    }
+    HorizontalLayout {
+        alignment: center;
+        StepArrow { up: false; label: @tr("Decrease {}", root.name); clicked => { root.step(-1); } }
+    }
+    if root.caption != "": Text {
+        text: root.caption;
+        color: Family.muted;
+        font-size: Family.caption;
+        horizontal-alignment: center;
+    }
+}
+
+export component TimerPage inherits VerticalLayout {
+    in property <int> state;
+    in property <string> text;
+    // Time left as a fraction of what was started.
+    in property <float> progress;
+    in-out property <int> hours: 0;
+    in-out property <int> minutes: 5;
+    in-out property <int> seconds: 0;
+    callback start();
+    callback pause();
+    callback resume();
+    callback reset();
+    padding: 24px;
+    spacing: Family.gap-l;
+
+    // The quick choices, in minutes (the labels of `quick`).
+    private property <[int]> presets: [1, 5, 10, 15, 30];
+    // Which quick choice the three fields show right now, or -1 when they hold anything else.
+    function preset-index() -> int {
+        return root.hours != 0 || root.seconds != 0 ? -1
+            : root.minutes == 1 ? 0 : root.minutes == 5 ? 1 : root.minutes == 10 ? 2
+            : root.minutes == 15 ? 3 : root.minutes == 30 ? 4 : -1;
+    }
+    // Two-way with the bar (it lives inside the `if` below, which the root cannot name).
+    private property <int> quick-sel: -1;
+    init => { root.quick-sel = root.preset-index(); }
+    changed hours => { root.quick-sel = root.preset-index(); }
+    changed minutes => { root.quick-sel = root.preset-index(); }
+    changed seconds => { root.quick-sel = root.preset-index(); }
+
+    if root.state == 0: VerticalLayout {
+        alignment: center;
+        spacing: Family.gap-xl;
+        vertical-stretch: 1;
+        HorizontalLayout {
+            alignment: center;
+            spacing: Family.gap-s;
+            TimeStepper { name: @tr("Hours"); caption: @tr("Hours"); value <=> root.hours; modulus: 100; }
+            Colon { }
+            TimeStepper { name: @tr("Minutes"); caption: @tr("Minutes"); value <=> root.minutes; modulus: 60; }
+            Colon { }
+            TimeStepper { name: @tr("Seconds"); caption: @tr("Seconds"); value <=> root.seconds; modulus: 60; }
+        }
+        // Quick choices: they fill the three fields, which can still be changed.
+        HorizontalLayout {
+            alignment: center;
+            FilterBar {
+                selected <=> root.quick-sel;
+                labels: [@tr("{} min", 1), @tr("{} min", 5), @tr("{} min", 10), @tr("{} min", 15), @tr("{} min", 30)];
+                picked => {
+                    root.hours = 0;
+                    root.minutes = root.presets[self.selected];
+                    root.seconds = 0;
+                }
+            }
+        }
+        StartPauseReset {
+            state: root.state;
+            can-start: root.hours + root.minutes + root.seconds > 0;
+            start => { root.start(); }
+        }
+    }
+    if root.state != 0: VerticalLayout {
+        vertical-stretch: 1;
+        ClockFace {
+            text: root.text;
+            progress: root.progress;
+            StartPauseReset {
+                state: root.state;
+                pause => { root.pause(); }
+                resume => { root.resume(); }
+                reset => { root.reset(); }
+            }
+        }
+    }
+}
+
+export component StopwatchPage inherits VerticalLayout {
+    in property <int> state;
+    in property <string> text;
+    callback start();
+    callback pause();
+    callback resume();
+    callback reset();
+    padding: 24px;
+    spacing: Family.gap-l;
+
+    ClockFace {
+        vertical-stretch: 1;
+        text: root.text;
+        StartPauseReset {
+            state: root.state;
+            start => { root.start(); }
+            pause => { root.pause(); }
+            resume => { root.resume(); }
+            reset => { root.reset(); }
+        }
+    }
+}
+
+export component PomodoroPage inherits VerticalLayout {
+    in property <int> state;
+    in property <string> text;
+    // "Work", "Break", "Long break": translated in Rust (`Tr`).
+    in property <string> phase;
+    // "Round 2 of 4", for screen readers: the dots show it.
+    in property <string> round;
+    in property <bool> working: true;
+    // Work rounds finished (of 4).
+    in property <int> done;
+    in property <float> progress;
+    callback start();
+    callback pause();
+    callback resume();
+    callback reset();
+    callback skip();
+    padding: 24px;
+    spacing: Family.gap-l;
+
+    ClockFace {
+        vertical-stretch: 1;
+        caption: root.phase;
+        // Work is the kit's blue, a break its green: you can tell which one it is from across the room.
+        caption-color: root.working ? Family.info : Family.success;
+        bar-color: root.working ? Family.info : Family.success;
+        dots: 4;
+        filled: root.done;
+        dots-label: root.round;
+        text: root.text;
+        progress: root.state == 0 ? -1 : root.progress;
+        StartPauseReset {
+            state: root.state;
+            start => { root.start(); }
+            pause => { root.pause(); }
+            resume => { root.resume(); }
+            reset => { root.reset(); }
+        }
+        Button { text: @tr("Skip"); clicked => { root.skip(); } }
+    }
+}
+
+// A weekday button of the alarm editor. It does not flip itself: the dialog owns the days (the quick picks set several
+// at once), so a click only says `toggled`.
+export component DayToggle inherits Rectangle {
+    in property <string> label;
+    in property <bool> checked;
+    callback toggled();
+    height: Family.control-height;
+    border-radius: Family.control-radius;
+    background: root.checked ? Palette.accent-background : Palette.alternate-background;
+    border-width: 1px;
+    border-color: root.checked ? Palette.accent-background : Palette.border;
+    accessible-role: checkbox;
+    accessible-label: root.label;
+    accessible-checked: root.checked;
+    accessible-action-default => { root.toggled(); }
+    TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
+    Text {
+        text: root.label;
+        font-size: Family.caption;
+        color: root.checked ? Palette.accent-foreground : Palette.foreground;
+        font-weight: root.checked ? Family.section-weight : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

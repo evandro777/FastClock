@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FastClock</title>
+<meta name="description" content="Alarms, a timer, a stopwatch and a Pomodoro for Linux. Light and fast.">
+<meta property="og:title" content="FastClock">
+<meta property="og:description" content="Alarms, a timer, a stopwatch and a Pomodoro for Linux. Light and fast.">
+<meta property="og:image" content="https://evandro777.github.io/FastClock/screenshots/main.png">
+<style>
+  :root { --bg:#fff; --fg:#1d1d20; --muted:#5f6368; --card:#f4f5f7; --accent:#0b7d3c; --border:#dadce0; --warn:#fff4d6; --warn-fg:#5c4400; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#17181a; --fg:#ececee; --muted:#9aa0a6; --card:#222427; --accent:#4cc38a; --border:#34373b; --warn:#33290d; --warn-fg:#f0d98a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 0 16px 64px; }
+  header { padding: 56px 0 16px; text-align: center; }
+  h1 { font-size: 2.6rem; margin: 0; }
+  .tag { color: var(--muted); font-size: 1.15rem; margin: 8px 0 0; }
+  h2 { margin-top: 48px; }
+  a { color: var(--accent); }
+  kbd { background:var(--card); border:1px solid var(--border); border-bottom-width:2px; border-radius:6px; padding:1px 7px; font:.9em ui-monospace, monospace; }
+  .callout { background:var(--warn); color:var(--warn-fg); border-radius:10px; padding:10px 16px; margin:20px 0 0; text-align:center; }
+  .shots { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:28px; align-items:start; }
+  .shots img { width:100%; height:auto; border-radius:10px; border:1px solid var(--border); }
+  /* One screenshot: centered at its own size instead of half of an empty grid. */
+  .shots img:only-child { grid-column:1 / -1; max-width:600px; justify-self:center; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+  .card { background:var(--card); border-radius:10px; padding:14px 16px; }
+  .card b { display:block; color:var(--accent); }
+  .card span { color:var(--muted); font-size:.92rem; }
+  pre { background:var(--card); padding:14px; border-radius:10px; overflow-x:auto; font-size:.9rem; }
+  details { background:var(--card); border-radius:10px; padding:10px 16px; margin:12px 0; }
+  summary { cursor:pointer; font-weight:600; }
+  small, .note { color:var(--muted); }
+  @media (max-width: 640px) { .shots { grid-template-columns: 1fr; } h1 { font-size: 2.1rem; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>FastClock</h1>
+    <p class="tag">Alarms, a timer, a stopwatch and a Pomodoro. Light and fast, and it keeps ringing from the tray.</p>
+    <p><a href="https://github.com/evandro777/FastClock">GitHub</a> ·
+       <a href="https://github.com/evandro777/FastClock/releases">Releases</a></p>
+    <p class="callout"><b>Early version.</b> Tested on Linux Mint Cinnamon (X11).</p>
+  </header>
+  <div class="shots">
+    <img src="screenshots/main.png" width="600" height="450" alt="The FastClock alarm list in the dark theme">
+    <img src="screenshots/main-light.png" width="600" height="450" alt="The same list in the light theme">
+    <img src="screenshots/timer.png" width="600" height="450" alt="The timer, with quick choices">
+    <img src="screenshots/pomodoro.png" width="600" height="450" alt="The Pomodoro, showing a work round">
+  </div>
+
+  <h2>What it does</h2>
+  <p>A clock for the desktop that stays out of the way. Written in Rust with Slint, software rendering only, no async runtime.</p>
+  <div class="grid">
+    <div class="card"><b>Alarms</b><span>Repeat on chosen days or ring once. Snooze or Stop from the window or the notification.</span></div>
+    <div class="card"><b>Timer</b><span>Set it with the steppers or a quick choice (1 to 30 min). The time shows in the window title.</span></div>
+    <div class="card"><b>Stopwatch</b><span>Tenths of a second, steady digits that do not jump.</span></div>
+    <div class="card"><b>Pomodoro</b><span>Work and break rounds with a long break after four.</span></div>
+    <div class="card"><b>Tray</b><span>Close the window and alarms keep working. Optional start at login.</span></div>
+    <div class="card"><b>Light</b><span>Small binary and little memory.</span></div>
+  </div>
+
+  <h2>Install with Flatpak (updates itself)</h2>
+  <p>This remote keeps FastClock updated with <code>flatpak update</code> and your software centre:</p>
+<pre>flatpak remote-add --system --if-not-exists fastclock https://evandro777.github.io/FastClock/fastclock.flatpakrepo
+flatpak install --system fastclock io.github.evandro777.FastClock</pre>
+  <p><small>Use <code>--system</code>: Linux Mint's Update Manager only looks at system-wide Flatpaks. The runtime comes from
+     Flathub. The remote is GPG-signed, but the key lives in the
+     <a href="https://github.com/evandro777/FastClock">source repository</a>, so it is only as trustworthy as that.</small></p>
+
+  <h2>Or the AppImage</h2>
+  <p>Download <code>FastClock-&lt;version&gt;-x86_64.AppImage</code> from the
+     <a href="https://github.com/evandro777/FastClock/releases/latest">latest release</a>, <code>chmod +x</code> it and run it.
+     It uses the fontconfig, xkbcommon and X11 libraries already on your system, and carries update information, so
+     AppImageUpdate, Gear Lever or AppManager download only what changed.</p>
+  <p class="note">Run one of the two, not both: they use different data folders.</p>
+
+  <h2>License</h2>
+  <p>GPL-3.0-or-later. See the <a href="https://github.com/evandro777/FastClock">repository</a>.</p>
+</main>
+</body>
+</html>

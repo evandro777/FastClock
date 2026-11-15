@@ -1,0 +1,332 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+
+msgctxt "Tr"
+msgid "Mon"
+msgstr "Seg"
+
+msgctxt "Tr"
+msgid "Tue"
+msgstr "Ter"
+
+msgctxt "Tr"
+msgid "Wed"
+msgstr "Qua"
+
+msgctxt "Tr"
+msgid "Thu"
+msgstr "Qui"
+
+msgctxt "Tr"
+msgid "Fri"
+msgstr "Sex"
+
+msgctxt "Tr"
+msgid "Sat"
+msgstr "Sáb"
+
+msgctxt "Tr"
+msgid "Sun"
+msgstr "Dom"
+
+msgctxt "Tr"
+msgid "Once"
+msgstr "Uma vez"
+
+msgctxt "Tr"
+msgid "Every day"
+msgstr "Todos os dias"
+
+msgctxt "Tr"
+msgid "Weekdays"
+msgstr "Dias úteis"
+
+msgctxt "Tr"
+msgid "Alarm"
+msgstr "Alarme"
+
+msgctxt "Tr"
+msgid "Time's up"
+msgstr "O tempo acabou"
+
+msgctxt "Tr"
+msgid "Work"
+msgstr "Foco"
+
+msgctxt "Tr"
+msgid "Break"
+msgstr "Pausa"
+
+msgctxt "Tr"
+msgid "Long break"
+msgstr "Pausa longa"
+
+msgctxt "Tr"
+msgid "Round {} of {}"
+msgstr "Rodada {} de {}"
+
+msgctxt "Tr"
+msgid "Work session finished"
+msgstr "Sessão de foco concluída"
+
+msgctxt "Tr"
+msgid "Break is over"
+msgstr "A pausa acabou"
+
+msgctxt "Tr"
+msgid "Next alarm in {} min"
+msgstr "Próximo alarme em {} min"
+
+msgctxt "Tr"
+msgid "Next alarm in {} h {} min"
+msgstr "Próximo alarme em {} h {} min"
+
+msgctxt "Tr"
+msgid "Next alarm in {} d {} h"
+msgstr "Próximo alarme em {} d {} h"
+
+msgctxt "Tr"
+msgid "Snooze"
+msgstr "Soneca"
+
+msgctxt "Tr"
+msgid "Stop"
+msgstr "Parar"
+
+msgctxt "Tr"
+msgid "Choose the alarm sound"
+msgstr "Escolha o som do alarme"
+
+msgctxt "Tr"
+msgid "Sound files"
+msgstr "Arquivos de som"
+
+msgctxt "Tr"
+msgid "Open FastClock"
+msgstr "Abrir o FastClock"
+
+msgctxt "Tr"
+msgid "Quit"
+msgstr "Sair"
+
+msgctxt "Main"
+msgid "Preferences"
+msgstr "Preferências"
+
+msgctxt "Main"
+msgid "Alarm"
+msgstr "Alarme"
+
+msgctxt "Main"
+msgid "Timer"
+msgstr "Timer"
+
+msgctxt "Main"
+msgid "Stopwatch"
+msgstr "Cronômetro"
+
+msgctxt "Main"
+msgid "Pomodoro"
+msgstr "Pomodoro"
+
+msgctxt "AlarmPage"
+msgid "Alarm"
+msgstr "Alarme"
+
+msgctxt "AlarmPage"
+msgid "New alarm"
+msgstr "Novo alarme"
+
+msgctxt "AlarmPage"
+msgid "Delete"
+msgstr "Excluir"
+
+msgctxt "AlarmPage"
+msgid "More"
+msgstr "Mais"
+
+msgctxt "AlarmPage"
+msgid "No alarms yet. Press New alarm."
+msgstr "Nenhum alarme ainda. Clique em Novo alarme."
+
+msgctxt "TimerPage"
+msgid "Hours"
+msgstr "Horas"
+
+msgctxt "TimerPage"
+msgid "Minutes"
+msgstr "Minutos"
+
+msgctxt "TimerPage"
+msgid "Seconds"
+msgstr "Segundos"
+
+msgctxt "PomodoroPage"
+msgid "Skip"
+msgstr "Pular"
+
+msgctxt "StartPauseReset"
+msgid "Pause"
+msgstr "Pausar"
+
+msgctxt "StartPauseReset"
+msgid "Resume"
+msgstr "Continuar"
+
+msgctxt "StartPauseReset"
+msgid "Start"
+msgstr "Iniciar"
+
+msgctxt "StartPauseReset"
+msgid "Reset"
+msgstr "Zerar"
+
+msgctxt "AlarmDialog"
+msgid "New alarm"
+msgstr "Novo alarme"
+
+msgctxt "AlarmDialog"
+msgid "Edit alarm"
+msgstr "Editar alarme"
+
+msgctxt "AlarmDialog"
+msgid "hour"
+msgstr "hora"
+
+msgctxt "AlarmDialog"
+msgid "minute"
+msgstr "minuto"
+
+msgctxt "TimeStepper"
+msgid "Increase {}"
+msgstr "Aumentar {}"
+
+msgctxt "TimeStepper"
+msgid "Decrease {}"
+msgstr "Diminuir {}"
+
+msgctxt "TimerPage"
+msgid "{} min"
+msgstr "{} min"
+
+msgctxt "AlarmDialog"
+msgid "Label (optional)"
+msgstr "Nome (opcional)"
+
+msgctxt "AlarmDialog"
+msgid "Pick no day to ring once."
+msgstr "Sem nenhum dia marcado, toca uma vez."
+
+msgctxt "AlarmDialog"
+msgid "Delete"
+msgstr "Excluir"
+
+msgctxt "AlarmDialog"
+msgid "Weekdays"
+msgstr "Dias úteis"
+
+msgctxt "AlarmDialog"
+msgid "Weekend"
+msgstr "Fim de semana"
+
+msgctxt "AlarmDialog"
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgctxt "AlarmDialog"
+msgid "Save"
+msgstr "Salvar"
+
+msgctxt "RingingDialog"
+msgid "Snooze"
+msgstr "Soneca"
+
+msgctxt "RingingDialog"
+msgid "Stop"
+msgstr "Parar"
+
+msgctxt "SettingsDialog"
+msgid "Preferences"
+msgstr "Preferências"
+
+msgctxt "SettingsDialog"
+msgid "Alarm sound"
+msgstr "Som do alarme"
+
+msgctxt "SettingsDialog"
+msgid "Bell"
+msgstr "Sino"
+
+msgctxt "SettingsDialog"
+msgid "Reset"
+msgstr "Restaurar"
+
+msgctxt "SettingsDialog"
+msgid "Test"
+msgstr "Testar"
+
+msgctxt "SettingsDialog"
+msgid "More"
+msgstr "Mais"
+
+msgctxt "SettingsDialog"
+msgid "Choose…"
+msgstr "Escolher…"
+
+msgctxt "SettingsDialog"
+msgid "Snooze (minutes)"
+msgstr "Soneca (minutos)"
+
+msgctxt "SettingsDialog"
+msgid "Start at login"
+msgstr "Iniciar com o sistema"
+
+msgctxt "SettingsDialog"
+msgid "Appearance"
+msgstr "Aparência"
+
+msgctxt "SettingsDialog"
+msgid "System"
+msgstr "Sistema"
+
+msgctxt "SettingsDialog"
+msgid "Light"
+msgstr "Claro"
+
+msgctxt "SettingsDialog"
+msgid "Dark"
+msgstr "Escuro"
+
+msgctxt "SettingsDialog"
+msgid "Language"
+msgstr "Idioma"
+
+msgctxt "SettingsDialog"
+msgid "About"
+msgstr "Sobre"
+
+msgctxt "SettingsDialog"
+msgid "Close"
+msgstr "Fechar"
+
+msgctxt "About"
+msgid "A light and fast alarm, timer, stopwatch and Pomodoro for Linux."
+msgstr "Alarme, temporizador, cronômetro e Pomodoro leves e rápidos para Linux."
+
+msgctxt "AboutCard"
+msgid "Version {}"
+msgstr "Versão {}"
+
+msgctxt "AboutCard"
+msgid "Author: {}"
+msgstr "Autor: {}"
+
+msgctxt "AboutCard"
+msgid "License: {}"
+msgstr "Licença: {}"
+
+msgctxt "AboutCard"
+msgid "Close"
+msgstr "Fechar"

@@ -1,0 +1,629 @@
+import { Button, ComboBox, LineEdit, Palette, ScrollView, SpinBox, Switch } from "std-widgets.slint";
+import { AlarmPage, AlarmRow, DayToggle, Digits, PomodoroPage, StopwatchPage, TimeStepper, TimerPage } from "clock.slint";
+import { Family } from "family.slint";
+import { AboutCard, PrefRow } from "about.slint";
+import { Icon, IconButton, MenuButton } from "controls.slint";
+
+export { AlarmRow, Digits }
+
+// Strings built in Rust go through this global (never `format!` user-visible text in Rust).
+export global Tr {
+    public pure function day(i: int) -> string {
+        return i == 0 ? @tr("Mon") : i == 1 ? @tr("Tue") : i == 2 ? @tr("Wed") : i == 3 ? @tr("Thu")
+            : i == 4 ? @tr("Fri") : i == 5 ? @tr("Sat") : @tr("Sun");
+    }
+    public pure function once() -> string { return @tr("Once"); }
+    public pure function every-day() -> string { return @tr("Every day"); }
+    public pure function weekdays() -> string { return @tr("Weekdays"); }
+    public pure function alarm() -> string { return @tr("Alarm"); }
+    public pure function timer-done() -> string { return @tr("Time's up"); }
+    public pure function phase-work() -> string { return @tr("Work"); }
+    public pure function phase-break() -> string { return @tr("Break"); }
+    public pure function phase-long-break() -> string { return @tr("Long break"); }
+    public pure function round(n: int, total: int) -> string { return @tr("Round {} of {}", n, total); }
+    public pure function work-done() -> string { return @tr("Work session finished"); }
+    public pure function break-done() -> string { return @tr("Break is over"); }
+    public pure function next-min(n: int) -> string { return @tr("Next alarm in {} min", n); }
+    public pure function next-h-min(h: int, m: int) -> string { return @tr("Next alarm in {} h {} min", h, m); }
+    public pure function next-d-h(d: int, h: int) -> string { return @tr("Next alarm in {} d {} h", d, h); }
+    public pure function snooze() -> string { return @tr("Snooze"); }
+    public pure function stop() -> string { return @tr("Stop"); }
+    public pure function pick-title() -> string { return @tr("Choose the alarm sound"); }
+    public pure function pick-filter() -> string { return @tr("Sound files"); }
+    public pure function tray-open() -> string { return @tr("Open FastClock"); }
+    public pure function tray-quit() -> string { return @tr("Quit"); }
+}
+
+// A sidebar entry: icon and title, the picked one tinted with a bar on its left edge (docs/UI-STYLE.md). Reachable with
+// Tab, picked with Space or Enter.
+component NavItem inherits Rectangle {
+    in property <string> title;
+    in property <image> glyph;
+    in property <bool> active;
+    callback clicked();
+    height: 36px;
+    border-radius: Family.control-radius;
+    background: root.active ? Family.selected : touch.has-hover ? Palette.foreground.with-alpha(0.06) : transparent;
+    accessible-role: tab;
+    accessible-label: root.title;
+    accessible-item-selected: root.active;
+    accessible-action-default => { root.clicked(); }
+    if root.active: Rectangle {
+        x: 0px;
+        y: 8px;
+        width: Family.selected-bar;
+        height: parent.height - 16px;
+        border-radius: Family.selected-bar / 2;
+        background: Palette.accent-background;
+    }
+    if fs.has-focus: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-width: 2px;
+        border-color: Palette.accent-background;
+        border-radius: Family.control-radius;
+    }
+    fs := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+        touch := TouchArea { mouse-cursor: pointer; clicked => { fs.focus(); root.clicked(); } }
+    }
+    HorizontalLayout {
+        padding-left: 14px;
+        spacing: 10px;
+        VerticalLayout {
+            alignment: center;
+            Icon {
+                source: root.glyph;
+                width: 16px;
+                height: 16px;
+                tone: root.active ? Palette.foreground : Palette.foreground.with-alpha(0.7);
+            }
+        }
+        Text {
+            text: root.title;
+            font-weight: root.active ? Family.section-weight : 400;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// The shell of every dialog: an in-window overlay, not a second window (closing Main always ends the app, and
+// ui-snapshot.sh can capture it). The dialog's content goes inside the card.
+component Dialog inherits Rectangle {
+    in property <length> card-width: Family.dialog-width;
+    callback dismiss();
+    // Enter, while the dialog itself (not a field in it) has focus: the dialog's main button.
+    callback confirm();
+    // The ringing dialog dims more and draws a warning edge: it must be seen first.
+    in property <color> scrim: Family.scrim;
+    in property <color> edge: Palette.border;
+    in property <length> edge-width: 1px;
+    background: root.scrim;
+    init => { keys.focus(); }
+
+    // Swallows clicks so nothing behind the overlay is reachable; a click outside the card closes it.
+    TouchArea { clicked => { root.dismiss(); } }
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.dismiss();
+                return accept;
+            }
+            if event.text == Key.Return {
+                root.confirm();
+                return accept;
+            }
+            // Keeps Tab from moving focus to the widgets hidden behind the overlay.
+            if event.text == Key.Tab || event.text == Key.Backtab {
+                return accept;
+            }
+            return reject;
+        }
+    }
+    Rectangle {
+        width: min(root.card-width, parent.width - 32px);
+        // A dialog with a ScrollView shrinks to fit a small window instead of outgrowing it.
+        height: min(box.preferred-height, parent.height - 32px);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Palette.background;
+        border-radius: Family.radius;
+        border-width: root.edge-width;
+        border-color: root.edge;
+        TouchArea { }
+        box := VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            @children
+        }
+    }
+}
+
+component SettingsDialog inherits Dialog {
+    // 0 follows the system, 1 light, 2 dark (settings.theme).
+    in-out property <int> color-scheme-index;
+    // 0 follows the system, 1 English, 2 Português (settings.language).
+    in-out property <int> language-index;
+    // File name of the chosen alarm sound; "" is the built-in bell.
+    in property <string> sound-name;
+    in-out property <int> snooze-min: 5;
+    in-out property <bool> autostart;
+    callback show-about();
+    callback pick-sound();
+    callback reset-sound();
+    callback test-sound();
+    callback snooze-changed(int);
+    callback autostart-changed(bool);
+
+    Text { text: @tr("Preferences"); font-size: Family.page-title; font-weight: Family.page-weight; }
+    ScrollView {
+        // A ScrollView does not report its content's height, so the card would collapse to a sliver.
+        preferred-height: content.preferred-height;
+        content := VerticalLayout {
+            alignment: start;
+            spacing: 12px;
+            PrefRow {
+                label: @tr("Alarm sound");
+                HorizontalLayout {
+                    width: Family.control-width;
+                    spacing: Family.gap-m;
+                    Rectangle { horizontal-stretch: 1; }
+                    Button { text: @tr("Choose…"); clicked => { root.pick-sound(); } }
+                    // Test and Reset are occasional: they live in a menu so the row stays one line. The area shares a plain
+                    // Rectangle with the button, because inside the layout it would take a slot of its own.
+                    Rectangle {
+                        width: Family.control-height;
+                        height: Family.control-height;
+                        sound-menu := ContextMenuArea {
+                            Menu {
+                                MenuItem { title: @tr("Test"); activated => { root.test-sound(); } }
+                                MenuItem { title: @tr("Reset"); enabled: root.sound-name != ""; activated => { root.reset-sound(); } }
+                            }
+                        }
+                        IconButton {
+                            glyph: @image-url("icons/more.svg");
+                            label: @tr("More");
+                            clicked => {
+                                sound-menu.show({
+                                    x: self.absolute-position.x - sound-menu.absolute-position.x,
+                                    y: self.absolute-position.y - sound-menu.absolute-position.y + self.height,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            // The file name needs the full width, so it sits under the row instead of squeezed beside the buttons.
+            Text {
+                text: root.sound-name == "" ? @tr("Bell") : root.sound-name;
+                color: Family.muted;
+                font-size: Family.caption;
+                overflow: elide;
+            }
+            PrefRow {
+                label: @tr("Snooze (minutes)");
+                HorizontalLayout {
+                    width: Family.control-width;
+                    alignment: end;
+                    SpinBox {
+                        width: 120px;
+                        minimum: 1;
+                        maximum: 120;
+                        value <=> root.snooze-min;
+                        edited(v) => { root.snooze-changed(v); }
+                    }
+                }
+            }
+            PrefRow {
+                label: @tr("Start at login");
+                Switch {
+                    checked <=> root.autostart;
+                    accessible-label: @tr("Start at login");
+                    toggled => { root.autostart-changed(self.checked); }
+                }
+            }
+            PrefRow {
+                label: @tr("Appearance");
+                ComboBox {
+                    width: Family.control-width;
+                    model: [@tr("System"), @tr("Light"), @tr("Dark")];
+                    current-index <=> root.color-scheme-index;
+                }
+            }
+            PrefRow {
+                label: @tr("Language");
+                // Language names stay in their own language, so they are not translated.
+                ComboBox {
+                    width: Family.control-width;
+                    model: [@tr("System"), "English", "Português (Brasil)"];
+                    current-index <=> root.language-index;
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Button { text: @tr("About"); clicked => { root.show-about(); } }
+        Rectangle { horizontal-stretch: 1; }
+        Button { text: @tr("Close"); primary: true; clicked => { root.dismiss(); } }
+    }
+}
+
+// Opened from the settings dialog; closing it goes back there.
+component About inherits Dialog {
+    in property <string> version;
+    callback open-website();
+
+    AboutCard {
+        icon: @image-url("../../../packaging/io.github.evandro777.FastClock.svg");
+        name: "FastClock";
+        version: root.version;
+        description: @tr("A light and fast alarm, timer, stopwatch and Pomodoro for Linux.");
+        url: "github.com/evandro777/FastClock";
+        link-clicked(_) => { root.open-website(); }
+        close => { root.dismiss(); }
+    }
+}
+
+// New and existing alarms share it. The fields are properties of Main so Rust can fill them and read them back.
+component AlarmDialog inherits Dialog {
+    in property <bool> is-new;
+    in-out property <int> hour;
+    in-out property <int> minute;
+    in-out property <string> label;
+    in-out property <[bool]> days;
+    callback save();
+    callback delete();
+
+    Text {
+        text: root.is-new ? @tr("New alarm") : @tr("Edit alarm");
+        font-size: Family.page-title;
+        font-weight: Family.page-weight;
+    }
+    confirm => { root.save(); }
+    HorizontalLayout {
+        alignment: center;
+        spacing: Family.gap-m;
+        TimeStepper { name: @tr("hour"); value <=> root.hour; modulus: 24; }
+        Text { text: ":"; font-size: 56px; font-weight: Family.section-weight; vertical-alignment: center; }
+        TimeStepper { name: @tr("minute"); value <=> root.minute; modulus: 60; }
+    }
+    LineEdit {
+        placeholder-text: @tr("Label (optional)");
+        text <=> root.label;
+        accepted => { root.save(); }
+    }
+    HorizontalLayout {
+        spacing: Family.gap-s;
+        for d[i] in 7: DayToggle {
+            label: Tr.day(i);
+            checked: root.days[i];
+            toggled => { root.days[i] = !root.days[i]; }
+        }
+    }
+    HorizontalLayout {
+        spacing: Family.gap-m;
+        Text {
+            text: @tr("Pick no day to ring once.");
+            color: Family.muted;
+            font-size: Family.caption;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            min-width: 0px;
+            horizontal-stretch: 1;
+        }
+        // Centred, so a hint that wraps to three lines does not stretch the buttons.
+        VerticalLayout {
+            alignment: center;
+            Button { text: @tr("Weekdays"); clicked => { root.days = [true, true, true, true, true, false, false]; } }
+        }
+        VerticalLayout {
+            alignment: center;
+            Button { text: @tr("Weekend"); clicked => { root.days = [false, false, false, false, false, true, true]; } }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        if !root.is-new: Button { text: @tr("Delete"); clicked => { root.delete(); } }
+        Rectangle { horizontal-stretch: 1; }
+        Button { text: @tr("Cancel"); clicked => { root.dismiss(); } }
+        Button { text: @tr("Save"); primary: true; clicked => { root.save(); } }
+    }
+}
+
+// Shown while an alarm or timer rings; the notification has the same buttons. The time is the content, so it is drawn at
+// clock-face size, and Stop is the biggest thing to hit.
+component RingingDialog inherits Dialog {
+    in property <string> title;
+    in property <string> body;
+    in property <bool> can-snooze;
+    callback snooze();
+    scrim: #000000d0;
+    edge: Family.warning;
+    edge-width: 2px;
+    confirm => { root.dismiss(); }
+
+    Text {
+        text: root.body;
+        font-size: 56px;
+        font-weight: Family.section-weight;
+        horizontal-alignment: center;
+        min-width: 0px;
+    }
+    Text {
+        text: root.title;
+        font-size: Family.page-title;
+        font-weight: Family.page-weight;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+        min-width: 0px;
+    }
+    HorizontalLayout {
+        spacing: Family.gap-l;
+        alignment: center;
+        if root.can-snooze: Button { text: @tr("Snooze"); min-width: 112px; min-height: 44px; clicked => { root.snooze(); } }
+        Button { text: @tr("Stop"); primary: true; min-width: 112px; min-height: 44px; clicked => { root.dismiss(); } }
+    }
+}
+
+export component Main inherits Window {
+    in property <string> version;
+    in-out property <bool> settings-open: false;
+    in-out property <bool> about-open: false;
+    // The sidebar page; `in-out` so FASTCLOCK_PAGE can open one directly (scripts/ui-snapshot.sh).
+    in-out property <int> page: 0;
+    in property <[AlarmRow]> alarms;
+    in property <string> next-alarm;
+    // Not empty while a timer or Pomodoro runs: the window title.
+    in property <string> clock-title;
+    // 0 idle, 1 running, 2 paused, for the timer, stopwatch and Pomodoro.
+    in property <int> timer-state;
+    in property <string> timer-text;
+    in property <float> timer-progress;
+    in property <bool> pomo-working: true;
+    in property <int> pomo-done;
+    in property <float> pomo-progress;
+    in-out property <int> timer-hours: 0;
+    in-out property <int> timer-minutes: 5;
+    in-out property <int> timer-seconds: 0;
+    in property <int> sw-state;
+    in property <string> sw-text: "00:00.0";
+    in property <int> pomo-state;
+    in property <string> pomo-text;
+    in property <string> pomo-phase;
+    in property <string> pomo-round;
+    // The ringing dialog.
+    in-out property <bool> ringing: false;
+    in property <string> ring-title;
+    in property <string> ring-body;
+    in property <bool> ring-can-snooze;
+    // The alarm editor: Rust fills these before opening it and reads them on Save.
+    in-out property <bool> edit-open: false;
+    in property <bool> edit-new;
+    in-out property <int> edit-hour: 7;
+    in-out property <int> edit-minute: 0;
+    in-out property <string> edit-label;
+    in-out property <[bool]> edit-days;
+    in property <string> sound-name;
+    in-out property <int> snooze-min: 5;
+    in-out property <bool> autostart: false;
+    // 0 follows the system, 1 light, 2 dark (settings.theme).
+    in-out property <int> color-scheme-index: 0;
+    // 0 follows the system, 1 English, 2 Português (settings.language).
+    in-out property <int> language-index: 0;
+    callback open-website();
+    callback alarm-add();
+    callback alarm-edit(int);
+    callback alarm-toggled(int, bool);
+    callback alarm-delete(int);
+    callback edit-save();
+    callback edit-delete();
+    callback timer-start();
+    callback timer-pause();
+    callback timer-resume();
+    callback timer-reset();
+    callback sw-start();
+    callback sw-pause();
+    callback sw-resume();
+    callback sw-reset();
+    callback pomo-start();
+    callback pomo-pause();
+    callback pomo-resume();
+    callback pomo-reset();
+    callback pomo-skip();
+    callback ring-stop();
+    callback ring-snooze();
+    callback pick-sound();
+    callback reset-sound();
+    callback test-sound();
+    callback snooze-changed(int);
+    callback autostart-changed(bool);
+    // So Rust can save the choice at once instead of only on a clean exit.
+    callback theme-changed(int);
+    callback language-changed(int);
+    // The time left of a running timer or Pomodoro, so the taskbar shows it with the window hidden or behind another.
+    title: root.clock-title == "" ? "FastClock" : root.clock-title + " · FastClock";
+    icon: @image-url("../../../packaging/io.github.evandro777.FastClock.svg");
+
+    // Palette.color-scheme is the only palette property an app can set; the colours follow the system accent.
+    function apply-theme() {
+        Palette.color-scheme = root.color-scheme-index == 1 ? ColorScheme.light
+            : root.color-scheme-index == 2 ? ColorScheme.dark : ColorScheme.unknown;
+    }
+    // Space on the Timer, Stopwatch or Pomodoro page: start, pause or resume. False when there is nothing to do
+    // (the Alarm page, or a timer with no time set), so the key is left alone.
+    function toggle-run() -> bool {
+        if root.page == 1 {
+            if root.timer-state == 1 { root.timer-pause(); return true; }
+            if root.timer-state == 2 { root.timer-resume(); return true; }
+            if root.timer-hours + root.timer-minutes + root.timer-seconds > 0 { root.timer-start(); return true; }
+        } else if root.page == 2 {
+            if root.sw-state == 1 { root.sw-pause(); } else if root.sw-state == 2 { root.sw-resume(); } else { root.sw-start(); }
+            return true;
+        } else if root.page == 3 {
+            if root.pomo-state == 1 { root.pomo-pause(); } else if root.pomo-state == 2 { root.pomo-resume(); } else { root.pomo-start(); }
+            return true;
+        }
+        return false;
+    }
+    init => {
+        root.apply-theme();
+        main-keys.focus();
+    }
+    // The page gets its keys back (Space) when the last dialog closes.
+    changed edit-open => { if !root.edit-open { main-keys.focus(); } }
+    changed settings-open => { if !root.settings-open && !root.about-open { main-keys.focus(); } }
+    changed ringing => { if !root.ringing { main-keys.focus(); } }
+    changed color-scheme-index => {
+        root.apply-theme();
+        root.theme-changed(root.color-scheme-index);
+    }
+    changed language-index => { root.language-changed(root.language-index); }
+
+    // Space starts, pauses and resumes the clock of the open page. It only gets the keys that the focused widget did
+    // not take, so Space on a button still presses that button. The dialogs below are outside it on purpose, and
+    // `focus()` is called at start-up and when a dialog closes, because it sees keys only while focus is inside it.
+    main-keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == " " && root.toggle-run() {
+                return accept;
+            }
+            return reject;
+        }
+        HorizontalLayout {
+            Rectangle {
+                width: 176px;
+                background: Palette.alternate-background;
+                VerticalLayout {
+                    padding: 8px;
+                    spacing: 8px;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        padding-left: 8px;
+                        padding-top: 4px;
+                        padding-bottom: 4px;
+                        Image {
+                            source: @image-url("../../../packaging/io.github.evandro777.FastClock.svg");
+                            width: 24px;
+                            height: 24px;
+                        }
+                        Text { text: "FastClock"; font-weight: Family.section-weight; vertical-alignment: center; }
+                        Rectangle { horizontal-stretch: 1; }
+                        // The burger: opens the preferences dialog (sound, snooze, login, appearance, language, About).
+                        MenuButton {
+                            label: @tr("Preferences");
+                            clicked => { root.settings-open = true; }
+                        }
+                    }
+                    // One page per item; `page` is shared with FASTCLOCK_PAGE.
+                    NavItem { title: @tr("Alarm"); glyph: @image-url("icons/alarm-clock.svg"); active: root.page == 0; clicked => { root.page = 0; } }
+                    NavItem { title: @tr("Timer"); glyph: @image-url("icons/hourglass.svg"); active: root.page == 1; clicked => { root.page = 1; } }
+                    NavItem { title: @tr("Stopwatch"); glyph: @image-url("icons/timer.svg"); active: root.page == 2; clicked => { root.page = 2; } }
+                    NavItem { title: @tr("Pomodoro"); glyph: @image-url("icons/focus.svg"); active: root.page == 3; clicked => { root.page = 3; } }
+                    Rectangle { vertical-stretch: 1; }
+                }
+            }
+            if root.page == 0: AlarmPage {
+                alarms: root.alarms;
+                next: root.next-alarm;
+                add => { root.alarm-add(); }
+                edit(i) => { root.alarm-edit(i); }
+                toggled(i, on) => { root.alarm-toggled(i, on); }
+                delete(i) => { root.alarm-delete(i); }
+            }
+            if root.page == 1: TimerPage {
+                state: root.timer-state;
+                text: root.timer-text;
+                progress: root.timer-progress;
+                hours <=> root.timer-hours;
+                minutes <=> root.timer-minutes;
+                seconds <=> root.timer-seconds;
+                start => { root.timer-start(); }
+                pause => { root.timer-pause(); }
+                resume => { root.timer-resume(); }
+                reset => { root.timer-reset(); }
+            }
+            if root.page == 2: StopwatchPage {
+                state: root.sw-state;
+                text: root.sw-text;
+                start => { root.sw-start(); }
+                pause => { root.sw-pause(); }
+                resume => { root.sw-resume(); }
+                reset => { root.sw-reset(); }
+            }
+            if root.page == 3: PomodoroPage {
+                state: root.pomo-state;
+                text: root.pomo-text;
+                phase: root.pomo-phase;
+                round: root.pomo-round;
+                working: root.pomo-working;
+                done: root.pomo-done;
+                progress: root.pomo-progress;
+                start => { root.pomo-start(); }
+                pause => { root.pomo-pause(); }
+                resume => { root.pomo-resume(); }
+                reset => { root.pomo-reset(); }
+                skip => { root.pomo-skip(); }
+            }
+        }
+    }
+
+    // Last children, outside the layout, so they draw on top. The ringing dialog is last: it must be seen first.
+    if root.edit-open: AlarmDialog {
+        width: root.width;
+        height: root.height;
+        is-new: root.edit-new;
+        hour <=> root.edit-hour;
+        minute <=> root.edit-minute;
+        label <=> root.edit-label;
+        days <=> root.edit-days;
+        dismiss => { root.edit-open = false; }
+        save => { root.edit-save(); }
+        delete => { root.edit-delete(); }
+    }
+    if root.settings-open: SettingsDialog {
+        width: root.width;
+        height: root.height;
+        color-scheme-index <=> root.color-scheme-index;
+        language-index <=> root.language-index;
+        sound-name: root.sound-name;
+        snooze-min <=> root.snooze-min;
+        autostart <=> root.autostart;
+        dismiss => { root.settings-open = false; }
+        show-about => {
+            root.settings-open = false;
+            root.about-open = true;
+        }
+        pick-sound => { root.pick-sound(); }
+        reset-sound => { root.reset-sound(); }
+        test-sound => { root.test-sound(); }
+        snooze-changed(v) => { root.snooze-changed(v); }
+        autostart-changed(on) => { root.autostart-changed(on); }
+    }
+    // Closing About returns to Settings: re-creating the dialog gives its keys focus back, so Esc keeps working.
+    if root.about-open: About {
+        width: root.width;
+        height: root.height;
+        version: root.version;
+        dismiss => {
+            root.about-open = false;
+            root.settings-open = true;
+        }
+        open-website => { root.open-website(); }
+    }
+    if root.ringing: RingingDialog {
+        width: root.width;
+        height: root.height;
+        title: root.ring-title;
+        body: root.ring-body;
+        can-snooze: root.ring-can-snooze;
+        dismiss => { root.ring-stop(); }
+        snooze => { root.ring-snooze(); }
+    }
+}

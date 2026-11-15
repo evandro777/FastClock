@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.evandro777.FastClock</id>
+  <name>FastClock</name>
+  <summary>Alarm, timer, stopwatch and Pomodoro</summary>
+  <metadata_license>FSFAP</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.evandro777">
+    <name translatable="no">evandro777</name>
+  </developer>
+  <url type="homepage">https://github.com/evandro777/FastClock</url>
+  <url type="bugtracker">https://github.com/evandro777/FastClock/issues</url>
+  <description>
+    <p>FastClock is a light and fast clock: alarms, a timer, a stopwatch and a simple Pomodoro. Alarms and timers ring a sound of your choice and raise a desktop notification with Snooze and Stop buttons, and keep working from the tray icon when the window is closed.</p>
+  </description>
+  <categories>
+    <category>Utility</category>
+    <category>Clock</category>
+  </categories>
+  <keywords>
+    <keyword>alarm</keyword>
+    <keyword>timer</keyword>
+    <keyword>stopwatch</keyword>
+    <keyword>pomodoro</keyword>
+    <keyword>clock</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="light">#f3b3ad</color>
+    <color type="primary" scheme_preference="dark">#8a2a24</color>
+  </branding>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/evandro777/FastClock/master/docs/screenshots/main.png</image>
+      <caption>Alarms, with the next one in the heading</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/evandro777/FastClock/master/docs/screenshots/timer.png</image>
+      <caption>Timer</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/evandro777/FastClock/master/docs/screenshots/pomodoro.png</image>
+      <caption>Pomodoro</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/evandro777/FastClock/master/docs/screenshots/ringing.png</image>
+      <caption>An alarm ringing, with Snooze and Stop</caption>
+    </screenshot>
+  </screenshots>
+  <launchable type="desktop-id">io.github.evandro777.FastClock.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-14">
+      <description>
+        <p>First release: alarms with snooze, a timer, a stopwatch and a Pomodoro, a tray icon, and a sound of your choice.</p>
+      </description>
+    </release>
+  </releases>
+</component>

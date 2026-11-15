@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=FastClock
+Type=Application
+GenericName=Clock
+Comment=Alarm, timer, stopwatch and Pomodoro
+Exec=fastclock
+Categories=Utility;Clock;
+Icon=io.github.evandro777.FastClock
+Terminal=false
