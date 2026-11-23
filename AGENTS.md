@@ -52,7 +52,7 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 
 ## Look
 
-- Native Fluent widgets on purpose: apps follow the system accent and light/dark mode. In Slint 1.18 the `Palette` colours are read-only; only `Palette.color-scheme` can be set (the Appearance setting does that). To change a colour you would have to write your own component.
+- Native Fluent widgets on purpose: apps follow the system accent and light/dark mode. In Slint 1.19 the `Palette` colours are read-only; only `Palette.color-scheme` can be set (the Appearance setting does that). To change a colour you would have to write your own component.
 - Pages: `ui/clock.slint` has `AlarmPage`, `TimerPage`, `StopwatchPage`, `PomodoroPage` (and `DayToggle`); the dialogs (`AlarmDialog`, `RingingDialog`, `SettingsDialog`, `About`) are in `main.slint` because they inherit its `Dialog`. A `.po` context is the component name: `Tr`, `Main`, `AlarmPage`, `TimerPage`, `StopwatchPage`, `PomodoroPage`, `StartPauseReset`, `AlarmDialog`, `RingingDialog`, `SettingsDialog`, `About`.
 - The clock face (56 px) is the one size outside `Family`'s type scale, on purpose: a number is the whole page. Everything else uses the scale.
 - Keys: `main-keys` (a `FocusScope` around the sidebar and pages) turns Space into start/pause for the open page (`toggle-run`); it only sees keys the focused widget rejected, so Space on a button still presses it, and it needs `main-keys.focus()` at start-up and when a dialog closes (the `changed ...-open` handlers). `Dialog` calls `confirm` on Enter while the dialog itself has focus (`AlarmDialog` saves, `RingingDialog` stops); the label `LineEdit` has its own `accepted`. Verified with real keys on a private Xvfb, not only snapshots.
@@ -106,7 +106,7 @@ Release gotchas (each one broke a first release):
 
 ## Flatpak
 
-App id `io.github.evandro777.FastClock`; `flatpak/build.sh --devel` installs `...FastClock.Devel` next to a release. Needs `flatpak-builder` and `org.freedesktop.Sdk//25.08` + `org.freedesktop.Sdk.Extension.rust-stable//25.08`. The runtime version `25.08` appears in five places (the manifest, the container image tag, the rust-stable install and its `GITHUB_PATH` line in `flatpak.yml`, and the header of `flatpak/build.sh`): bump them together.
+App id `io.github.evandro777.FastClock`; `flatpak/build.sh --devel` installs `...FastClock.Devel` next to a release. Needs `flatpak-builder` and `org.freedesktop.Sdk//26.08` + `org.freedesktop.Sdk.Extension.rust-stable//26.08`. The runtime version `26.08` appears in five places (the manifest, the container image tag, the rust-stable install and its `GITHUB_PATH` line in `flatpak.yml`, and the header of `flatpak/build.sh`): bump them together.
 
 - Auto-update = our own signed OSTree remote on GitHub Pages (`flatpak.yml`: `bundle` → `pages` → `release`), deployed on `v*` tags only. Every deploy replaces the whole site, so never deploy Pages from another trigger. The public key is `flatpak/signing-key.b64` (base64 of the binary export, made by `flatpak/new-signing-key.sh`; the template ships none); the private half is the secret `FLATPAK_GPG_PRIVATE_KEY`. See `docs/FLATPAK-SIGNING.md`.
 - Keep `finish-args` minimal (the manifest says how for X11-only apps and trays). The build vendors crates (`cargo vendor`), so `flatpak/vendor` must not be in the manifest's `skip:`.

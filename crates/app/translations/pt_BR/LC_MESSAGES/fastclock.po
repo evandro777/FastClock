@@ -52,6 +52,14 @@ msgid "Time's up"
 msgstr "O tempo acabou"
 
 msgctxt "Tr"
+msgid "Settings could not be read"
+msgstr "Não foi possível ler as configurações"
+
+msgctxt "Tr"
+msgid "Your alarms were not loaded. The old file was kept as settings.toml.bad.* next to it."
+msgstr "Seus alarmes não foram carregados. O arquivo antigo foi guardado como settings.toml.bad.* ao lado dele."
+
+msgctxt "Tr"
 msgid "Work"
 msgstr "Foco"
 

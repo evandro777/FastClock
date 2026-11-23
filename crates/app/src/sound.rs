@@ -2,7 +2,8 @@
 //! PulseAudio or PipeWire, so no audio library is linked. A sound that cannot be played falls back to the built-in
 //! bell, because a silent alarm is the worst thing this app can do.
 use std::{
-    io::ErrorKind,
+    io::{ErrorKind, Write},
+    os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -40,7 +41,12 @@ pub fn ring(path: &str, looping: bool) -> Ringer {
             if !played {
                 // A format the players cannot read (or no player): the bell is the safe fallback.
                 if custom.take().is_none() {
-                    return eprintln!("no sound: neither paplay nor pw-play could play the bell");
+                    if !looping {
+                        return eprintln!("no sound: neither paplay nor pw-play could play the bell");
+                    }
+                    // The audio server may still be waking up (after a suspend or at login): keep trying until the
+                    // ring is stopped, because a silent alarm is the worst failure.
+                    pause(&flag, Duration::from_secs(2));
                 }
                 continue;
             }
@@ -101,7 +107,15 @@ fn bell_path() -> Option<PathBuf> {
     static BELL: OnceLock<Option<PathBuf>> = OnceLock::new();
     BELL.get_or_init(|| {
         let path = bell_file();
-        std::fs::write(&path, bell_wav()).ok().map(|()| path)
+        // A leftover of a dead process with this pid goes first; `create_new` then refuses a planted symlink in /tmp.
+        let _ = std::fs::remove_file(&path);
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)
+            .ok()?;
+        file.write_all(&bell_wav()).ok().map(|()| path)
     })
     .clone()
 }

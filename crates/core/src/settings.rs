@@ -63,15 +63,18 @@ fn data_dir() -> Option<PathBuf> {
 }
 
 impl Settings {
-    pub fn load() -> Self {
-        data_dir().map_or_else(Self::default, |dir| Self::load_from(&dir))
+    /// The flag says a bad file was moved aside (defaults are in use), so the app can tell the user.
+    pub fn load() -> (Self, bool) {
+        data_dir().map_or_else(|| (Self::default(), false), |dir| Self::load_from(&dir))
     }
 
-    fn load_from(dir: &Path) -> Self {
+    fn load_from(dir: &Path) -> (Self, bool) {
         // The file is hand-edited; a bad one is moved aside so the next save() must not overwrite what the user wrote.
-        let mut s = read_or_backup(&dir.join("settings.toml"), |t| parse(t).map_err(|e| e.to_string())).0;
+        let path = dir.join("settings.toml");
+        let existed = path.exists();
+        let (mut s, parsed) = read_or_backup(&path, |t| parse(t).map_err(|e| e.to_string()));
         s.normalize();
-        s
+        (s, existed && !parsed)
     }
 
     fn normalize(&mut self) {
@@ -145,7 +148,8 @@ mod tests {
             ..Settings::default()
         };
         s.save_to(&dir).unwrap();
-        let loaded = Settings::load_from(&dir);
+        let (loaded, bad) = Settings::load_from(&dir);
+        assert!(!bad);
         assert_eq!(
             (
                 loaded.language.as_str(),
@@ -165,7 +169,10 @@ mod tests {
         let dir = temp_dir("bad");
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("settings.toml"), "width = \"wide\"").unwrap();
-        assert_eq!(Settings::load_from(&dir).width, Settings::default().width);
+        let (s, bad) = Settings::load_from(&dir);
+        assert_eq!(s.width, Settings::default().width);
+        assert!(bad, "the caller is told, so the user can be too");
+        assert!(!Settings::load_from(&dir).1, "a missing file is not a bad one");
         assert!(
             fs::read_dir(&dir)
                 .unwrap()

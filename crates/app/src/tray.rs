@@ -1,5 +1,7 @@
 //! Tray icon (StatusNotifierItem): Open and Quit. Closing the window hides it to the tray so alarms keep ringing; it is
 //! optional: without a tray host or a D-Bus session the app quits when the window closes instead.
+use std::sync::OnceLock;
+
 use ksni::{
     Icon, MenuItem, Tray,
     blocking::{Handle, TrayMethods},
@@ -52,21 +54,27 @@ impl Tray for FastTray {
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
-        let Some((width, height, rgba)) = decode_rgba(ICON) else {
-            return Vec::new();
-        };
-        // StatusNotifier wants ARGB32 in network byte order.
-        let data = rgba
-            .as_chunks::<4>()
-            .0
+        // Decoded once: the tray host asks for the icon again on every refresh.
+        static PIXMAP: OnceLock<Option<Icon>> = OnceLock::new();
+        PIXMAP
+            .get_or_init(|| {
+                let (width, height, rgba) = decode_rgba(ICON)?;
+                // StatusNotifier wants ARGB32 in network byte order.
+                let data = rgba
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .flat_map(|p| [p[3], p[0], p[1], p[2]])
+                    .collect();
+                Some(Icon {
+                    width: width as i32,
+                    height: height as i32,
+                    data,
+                })
+            })
             .iter()
-            .flat_map(|p| [p[3], p[0], p[1], p[2]])
-            .collect();
-        vec![Icon {
-            width: width as i32,
-            height: height as i32,
-            data,
-        }]
+            .cloned()
+            .collect()
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {

@@ -21,6 +21,12 @@ T = [
     ("Tr", "Weekdays", ["Dias úteis"]),
     ("Tr", "Alarm", ["Alarme"]),
     ("Tr", "Time's up", ["O tempo acabou"]),
+    ("Tr", "Settings could not be read", ["Não foi possível ler as configurações"]),
+    (
+        "Tr",
+        "Your alarms were not loaded. The old file was kept as settings.toml.bad.* next to it.",
+        ["Seus alarmes não foram carregados. O arquivo antigo foi guardado como settings.toml.bad.* ao lado dele."],
+    ),
     ("Tr", "Work", ["Foco"]),
     ("Tr", "Break", ["Pausa"]),
     ("Tr", "Long break", ["Pausa longa"]),

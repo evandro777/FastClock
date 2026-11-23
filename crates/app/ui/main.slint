@@ -17,6 +17,10 @@ export global Tr {
     public pure function weekdays() -> string { return @tr("Weekdays"); }
     public pure function alarm() -> string { return @tr("Alarm"); }
     public pure function timer-done() -> string { return @tr("Time's up"); }
+    public pure function settings-bad-title() -> string { return @tr("Settings could not be read"); }
+    public pure function settings-bad-body() -> string {
+        return @tr("Your alarms were not loaded. The old file was kept as settings.toml.bad.* next to it.");
+    }
     public pure function phase-work() -> string { return @tr("Work"); }
     public pure function phase-break() -> string { return @tr("Break"); }
     public pure function phase-long-break() -> string { return @tr("Long break"); }
@@ -344,10 +348,20 @@ component RingingDialog inherits Dialog {
     in property <string> body;
     in property <bool> can-snooze;
     callback snooze();
+    callback stop();
     scrim: #000000d0;
     edge: Family.warning;
     edge-width: 2px;
-    confirm => { root.dismiss(); }
+    // The alarm raises this window, so a key typed (or a click made) for another app can land here a moment later:
+    // Esc and a click outside do nothing, and Enter only counts once the dialog has been up for a while.
+    private property <bool> armed: false;
+    Timer {
+        interval: 1500ms;
+        running: true;
+        triggered => { root.armed = true; self.running = false; }
+    }
+    dismiss => { }
+    confirm => { if root.armed { root.stop(); } }
 
     Text {
         text: root.body;
@@ -368,7 +382,7 @@ component RingingDialog inherits Dialog {
         spacing: Family.gap-l;
         alignment: center;
         if root.can-snooze: Button { text: @tr("Snooze"); min-width: 112px; min-height: 44px; clicked => { root.snooze(); } }
-        Button { text: @tr("Stop"); primary: true; min-width: 112px; min-height: 44px; clicked => { root.dismiss(); } }
+        Button { text: @tr("Stop"); primary: true; min-width: 112px; min-height: 44px; clicked => { root.stop(); } }
     }
 }
 
@@ -623,7 +637,7 @@ export component Main inherits Window {
         title: root.ring-title;
         body: root.ring-body;
         can-snooze: root.ring-can-snooze;
-        dismiss => { root.ring-stop(); }
+        stop => { root.ring-stop(); }
         snooze => { root.ring-snooze(); }
     }
 }

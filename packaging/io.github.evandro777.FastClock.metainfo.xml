@@ -49,6 +49,14 @@
   <launchable type="desktop-id">io.github.evandro777.FastClock.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-11-23">
+      <description>
+        <p>Fixes double-ringing at the end of daylight saving time;</p>
+        <p>The ringing dialog can no longer be dismissed by stray keystrokes;</p>
+        <p>A damaged settings file is now backed up and reported instead of silently reset;</p>
+        <p>More reliable alarm sound after suspend or login; updated to Slint 1.19 and Freedesktop 26.08.</p>
+      </description>
+    </release>
     <release version="0.1.1" date="2026-11-15">
       <description>
         <p>First release: alarms with snooze, a timer, a stopwatch and a Pomodoro, a tray icon, and a sound of your choice.</p>

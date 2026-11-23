@@ -206,7 +206,7 @@ impl App {
         let (now, instant) = (SystemTime::now(), Instant::now());
 
         let minute = clock::local_minutes(now);
-        if minute != self.last_minute {
+        if minute != self.last_minute && !clock::is_replay(self.last_minute, minute) {
             let prev = std::mem::replace(&mut self.last_minute, minute);
             let mut fired = None;
             let mut once_done = false;
@@ -232,7 +232,8 @@ impl App {
             let s = self.snoozed.remove(i);
             self.start_ring(&ui, Kind::Alarm(s.alarm));
         }
-        if self.timer.finished(now) {
+        // A timer that ends while something rings waits (it stays finished) instead of replacing that ring.
+        if self.ring.is_none() && self.timer.finished(now) {
             self.timer = Countdown::Idle;
             self.start_ring(&ui, Kind::Timer(self.timer_total));
         }
@@ -288,6 +289,7 @@ impl App {
         // An alarm brings the window up, like a phone's; a timer ringing in the background stays a notification.
         if alarm.is_some() {
             instance::raise(ui.window());
+            to_front(ui);
         }
         self.ring = Some(Ring {
             id,
@@ -313,11 +315,10 @@ impl App {
             let _ = weak.upgrade_in_event_loop(move |_| {
                 let app = app();
                 let mut app = app.borrow_mut();
-                match app.ring.as_mut().filter(|r| r.id == ring_id) {
-                    Some(r) => r.notification = Some(id),
-                    None => {
-                        std::thread::spawn(move || notify::close(id));
-                    }
+                if should_close(app.ring.as_ref().map(|r| r.id), ring_id) {
+                    std::thread::spawn(move || notify::close(id));
+                } else if let Some(r) = app.ring.as_mut().filter(|r| r.id == ring_id) {
+                    r.notification = Some(id);
                 }
             });
         });
@@ -467,8 +468,19 @@ impl App {
     }
 }
 
+/// Whether a notification that has just been sent must come straight down: its ring is over. Id 0 is a notification
+/// without a ring (Pomodoro, settings): nothing ends it but the user.
+fn should_close(active_ring: Option<u64>, ring_id: u64) -> bool {
+    ring_id != 0 && active_ring != Some(ring_id)
+}
+
 /// A button of a notification (or its body, `default`) was pressed. Ignored when that ring is already over.
 fn ring_action(ui: &Main, ring_id: u64, key: &str) {
+    // A notification without a ring (Pomodoro, settings) has no buttons: any click is a click on its body.
+    if ring_id == 0 {
+        instance::raise(ui.window());
+        return;
+    }
     let app = app();
     let mut app = app.borrow_mut();
     if app.ring.as_ref().is_none_or(|r| r.id != ring_id) {
@@ -522,6 +534,8 @@ fn main() {
     let fixture_run = fixtures::mode().is_some();
     #[cfg(not(debug_assertions))]
     let fixture_run = false;
+    // False for fixture runs: their settings hold canned alarms that must never reach the real file.
+    let persist = !fixture_run;
     // One window: a copy is already open, so it comes to the front and this one leaves before setting anything up.
     if !fixture_run && instance::send("show") {
         return;
@@ -533,7 +547,7 @@ fn main() {
         .select()
         .expect("cannot start the Slint software renderer");
 
-    let settings = Settings::load();
+    let (settings, settings_bad) = Settings::load();
     let ui = Main::new().unwrap();
     // Take the socket now that the window exists; a later start sends "show" and this window is raised.
     if !fixture_run {
@@ -577,7 +591,7 @@ fn main() {
     let state = Rc::new(RefCell::new(App {
         ui: ui.as_weak(),
         settings: settings.clone(),
-        persist: !fixture_run,
+        persist,
         alarms,
         editing: None,
         timer: Countdown::Idle,
@@ -608,6 +622,16 @@ fn main() {
         fixtures::apply(&ui, &mut state.borrow_mut(), mode);
     }
     if !fixture_run {
+        if settings_bad {
+            let tr = ui.global::<Tr>();
+            state.borrow().notify(
+                0,
+                &tr.invoke_settings_bad_title(),
+                &tr.invoke_settings_bad_body(),
+                Vec::new(),
+                true,
+            );
+        }
         let ticker_app = state.clone();
         state
             .borrow()
@@ -744,7 +768,12 @@ fn main() {
         a.settings.borrow_mut().snooze_min = v.clamp(1, 120) as u32;
         a.save();
     });
-    on!(ui, on_autostart_changed, |_a, ui, on| {
+    on!(ui, on_autostart_changed, |a, ui, on| {
+        // A fixture run must not change the real autostart entry: put the switch back.
+        if !a.persist {
+            ui.set_autostart(!on);
+            return;
+        }
         let weak = ui.as_weak();
         // The Background portal may show the desktop's own question, so it runs on a thread.
         std::thread::spawn(move || {
@@ -761,10 +790,13 @@ fn main() {
         move |index| {
             let mut s = settings.borrow_mut();
             let theme = theme_name(index);
-            // Also fires once at start-up; saving then would rewrite the file (and, with fixtures, the real one).
+            // Also fires once at start-up; saving then would rewrite the file. A fixture run holds canned alarms in
+            // these settings and must never write them (`persist`).
             if s.theme != theme {
                 s.theme = theme.into();
-                s.save();
+                if persist {
+                    s.save();
+                }
             }
         }
     });
@@ -783,7 +815,9 @@ fn main() {
                     return;
                 }
                 s.language = code.into();
-                s.save();
+                if persist {
+                    s.save();
+                }
                 select_language(&language(&s));
             }
             // The strings Rust built (alarm days, tray menu) are in the old language until redone.
@@ -824,7 +858,7 @@ fn main() {
         let (weak, settings) = (ui.as_weak(), settings.clone());
         move || {
             if let Some(ui) = weak.upgrade() {
-                save_size(&ui, &settings);
+                save_size(&ui, &settings, persist);
             }
             if !has_tray {
                 let _ = slint::quit_event_loop();
@@ -832,14 +866,15 @@ fn main() {
             slint::CloseRequestResponse::HideWindow
         }
     });
-    // --hidden (start at login) goes straight to the tray; without one there would be nothing to click.
-    if !(has_tray && std::env::args().any(|a| a == "--hidden")) {
+    // --hidden (start at login) goes straight to the tray; without one there would be nothing to click. A bad settings
+    // file shows the window anyway: the notice about it may be lost while the desktop is still starting.
+    if !(has_tray && !settings_bad && std::env::args().any(|a| a == "--hidden")) {
         ui.show().unwrap();
+        center(&ui);
     }
     // Not `ui.run()`: that ends when the window is hidden, and the alarms would die with it.
     slint::run_event_loop_until_quit().unwrap();
-    // Normal exit only; the snapshot script kills the app, so fixtures never overwrite the real file.
-    save_size(&ui, &settings);
+    save_size(&ui, &settings, persist);
     let ui_handle = app();
     let mut a = ui_handle.borrow_mut();
     if let Some(r) = a.ring.take() {
@@ -848,13 +883,40 @@ fn main() {
     sound::cleanup();
 }
 
-fn save_size(ui: &Main, settings: &RefCell<Settings>) {
+/// Focus requests are often refused by the window manager; flipping "always on top" on and off puts the window above
+/// the others anyway, and it does not stay pinned.
+fn to_front(ui: &Main) {
+    use slint::winit_030::{WinitWindowAccessor, winit::window::WindowLevel};
+    ui.window().with_winit_window(|w| {
+        w.set_window_level(WindowLevel::AlwaysOnTop);
+        w.set_window_level(WindowLevel::Normal);
+    });
+}
+
+/// Centers the window on its monitor at start; the position is not saved, so the window manager would pick one.
+/// A no-op where the compositor owns placement (Wayland).
+fn center(ui: &Main) {
+    use slint::winit_030::WinitWindowAccessor;
+    ui.window().with_winit_window(|w| {
+        if let Some(m) = w.current_monitor() {
+            let (ms, mp, ws) = (m.size(), m.position(), w.outer_size());
+            w.set_outer_position(slint::winit_030::winit::dpi::PhysicalPosition::new(
+                mp.x + (ms.width.saturating_sub(ws.width) / 2) as i32,
+                mp.y + (ms.height.saturating_sub(ws.height) / 2) as i32,
+            ));
+        }
+    });
+}
+
+fn save_size(ui: &Main, settings: &RefCell<Settings>, persist: bool) {
     let size = ui.window().size().to_logical(ui.window().scale_factor());
     let mut settings = settings.borrow_mut();
     settings.width = size.width.round() as u32;
     settings.height = size.height.round() as u32;
     settings.theme = theme_name(ui.get_color_scheme_index()).into();
-    settings.save();
+    if persist {
+        settings.save();
+    }
 }
 
 /// `settings.language` for each entry of the Language selector: system, English, Português.
@@ -910,6 +972,15 @@ mod tests {
             assert_eq!(theme_name(i as i32), *t);
         }
         assert_eq!(theme_index("bogus"), 0);
+    }
+
+    #[test]
+    fn a_notification_without_a_ring_is_never_taken_down() {
+        assert!(!should_close(None, 0), "Pomodoro and settings notices stay");
+        assert!(!should_close(Some(3), 0));
+        assert!(!should_close(Some(3), 3), "its ring is still going");
+        assert!(should_close(Some(4), 3), "a newer ring replaced it");
+        assert!(should_close(None, 3), "its ring already ended");
     }
 
     #[test]

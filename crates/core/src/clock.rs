@@ -57,6 +57,12 @@ pub fn local_minutes(t: SystemTime) -> i64 {
     (secs as i64 + offset as i64) / 60
 }
 
+/// The wall clock went back a little (daylight saving ends): the minutes of that hour come round again, and an alarm
+/// in them must not ring twice. A bigger jump back is a manual change, and alarms follow the new time at once.
+pub fn is_replay(last: i64, now: i64) -> bool {
+    (1..=120).contains(&(last - now))
+}
+
 /// Whether the alarm's minute falls in `(prev, now]` (minutes as from `local_minutes`), on a day it repeats.
 /// A tick that is a little late, or a short suspend, still rings it, and the window never overlaps the last one.
 pub fn due(alarm: &Alarm, prev: i64, now: i64) -> bool {
@@ -272,6 +278,13 @@ mod tests {
         assert!(!due(&a, MON + 8 * 60 - 1, MON + 8 * 60), "Monday");
         assert!(due(&a, MON + DAY + 8 * 60 - 1, MON + DAY + 8 * 60), "Tuesday");
         assert!(due(&a, MON + 3 * DAY + 8 * 60 - 1, MON + 3 * DAY + 8 * 60), "Thursday");
+    }
+
+    #[test]
+    fn an_hour_back_is_a_replay_but_a_day_back_is_not() {
+        assert!(is_replay(MON + 119, MON + 60), "daylight saving ends: 01:59 -> 01:00");
+        assert!(!is_replay(MON + 60, MON + 61));
+        assert!(!is_replay(MON + DAY, MON), "a manual change of a day");
     }
 
     #[test]

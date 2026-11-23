@@ -1,4 +1,4 @@
-# FastClock
+# <img src="packaging/io.github.evandro777.FastClock.svg" width="36" height="36" alt=""> FastClock
 
 [![CI](https://github.com/evandro777/FastClock/actions/workflows/ci.yml/badge.svg)](https://github.com/evandro777/FastClock/actions/workflows/ci.yml)
 [![Flatpak](https://github.com/evandro777/FastClock/actions/workflows/flatpak.yml/badge.svg)](https://github.com/evandro777/FastClock/actions/workflows/flatpak.yml)
