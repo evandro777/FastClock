@@ -91,12 +91,6 @@ jobs:
     needs: bundle
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -123,13 +117,28 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
+
+  # Its own job: in the same job as the upload, deploy-pages can list artifacts before GitHub shows the new one
+  # (actions/deploy-pages#451), and re-running then uploads a second one.
+  deploy:
+    name: Deploy Pages
+    needs: pages
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v5
 
   # After the remote is live, so a release never announces a version `flatpak update` cannot fetch yet.
   release:
     name: Add to release
-    needs: [bundle, pages]
+    needs: [bundle, deploy]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
